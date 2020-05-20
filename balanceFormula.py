@@ -1,49 +1,80 @@
 import re
+import sympy
+import functools
+import json
+import math
 from collections import Counter
-# import collections
+from operator import itemgetter, attrgetter
 
-MM_of_Elements = {'H' : 1.00794,     'He': 4.002602,  'Li': 6.941,     'Be': 9.012182, 'B' : 10.811,      'C' : 12.0107,
-                  'N' : 14.0067,     'O' : 15.9994,   'F' : 18.9984032,'Ne': 20.1797,  'Na': 22.98976928, 'Mg': 24.305,
-                  'Al': 26.9815386,  'Si': 28.0855,   'P' : 30.973762, 'S' : 32.065,   'Cl': 35.453,      'Ar': 39.948,
-                  'K' : 39.0983,     'Ca': 40.078,    'Sc': 44.955912, 'Ti': 47.867,   'V' : 50.9415,     'Cr': 51.9961,
-                  'Mn': 54.938045,   'Fe': 55.845,    'Co': 58.933195, 'Ni': 58.6934,  'Cu': 63.546,      'Zn': 65.409,
-                  'Ga': 69.723,      'Ge': 72.64,     'As': 74.9216,   'Se': 78.96,    'Br': 79.904,      'Kr': 83.798,
-                  'Rb': 85.4678,     'Sr': 87.62,     'Y' : 88.90585,  'Zr': 91.224,   'Nb': 92.90638,    'Mo': 95.94,
-                  'Tc': 98.9063,     'Ru': 101.07,    'Rh': 102.9055,  'Pd': 106.42,   'Ag': 107.8682,    'Cd': 112.411,
-                  'In': 114.818,     'Sn': 118.71,    'Sb': 121.760,   'Te': 127.6,    'I' : 126.90447,   'Xe': 131.293,
-                  'Cs': 132.9054519, 'Ba': 137.327,   'La': 138.90547, 'Ce': 140.116,  'Pr': 140.90465,   'Nd': 144.242,
-                  'Pm': 146.9151,    'Sm': 150.36,    'Eu': 151.964,   'Gd': 157.25,   'Tb': 158.92535,   'Dy': 162.5,
-                  'Ho': 164.93032,   'Er': 167.259,   'Tm': 168.93421, 'Yb': 173.04,   'Lu': 174.967,     'Hf': 178.49,
-                  'Ta': 180.9479,    'W' : 183.84,    'Re': 186.207,   'Os': 190.23,   'Ir': 192.217,     'Pt': 195.084,
-                  'Au': 196.966569,  'Hg': 200.59,    'Tl': 204.3833,  'Pb': 207.2,    'Bi': 208.9804,    'Po': 208.9824,
-                  'At': 209.9871,    'Rn': 222.0176,  'Fr': 223.0197,  'Ra': 226.0254, 'Ac': 227.0278,    'Th': 232.03806,
-                  'Pa': 231.03588,   'U' : 238.02891, 'Np': 237.0482,  'Pu': 244.0642, 'Am': 243.0614,    'Cm': 247.0703,
-                  'Bk': 247.0703,    'Cf': 251.0796,  'Es': 252.0829,  'Fm': 257.0951, 'Md': 258.0951,    'No': 259.1009,
-                  'Lr': 262,         'Rf': 267,       'Db': 268,       'Sg': 271,      'Bh': 270,         'Hs': 269,
-                  'Mt': 278,         'Ds': 281,       'Rg': 281,       'Cn': 285,      'Nh': 284,         'Fl': 289,
-                  'Mc': 289,         'Lv': 292,       'Ts': 294,       'Og': 294,      'ZERO': 0
-                  }
+ELEMENTS=[
+'H' ,                                                                                                                                                                                     'He',
+'Li', 'Be',                                                                                                                                                 'B' , 'C' , 'N' , 'O' , 'F' , 'Ne',
+'Na', 'Mg',                                                                                                                                                 'Al', 'Si', 'P' , 'S' , 'Cl', 'Ar',
+'K' , 'Ca', 'Sc',                                                                                     'Ti', 'V' , 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu', 'Zn', 'Ga', 'Ge', 'As', 'Se', 'Br', 'Kr',
+'Rb', 'Sr', 'Y' ,                                                                                     'Zr', 'Nb', 'Mo', 'Tc', 'Ru', 'Rh', 'Pd', 'Ag', 'Cd', 'In', 'Sn', 'Sb', 'Te', 'I' , 'Xe',
+'Cs', 'Ba', 'La', 'Ce', 'Pr', 'Nd', 'Pm', 'Sm', 'Eu', 'Gd', 'Tb', 'Dy', 'Ho', 'Er', 'Tm', 'Yb', 'Lu', 'Hf', 'Ta', 'W' , 'Re', 'Os', 'Ir', 'Pt', 'Au', 'Hg', 'Tl', 'Pb', 'Bi', 'Po', 'At', 'Rn',
+'Fr', 'Ra', 'Ac', 'Th', 'Pa', 'U' , 'Np', 'Pu', 'Am', 'Cm', 'Bk', 'Cf', 'Es', 'Fm', 'Md', 'No', 'Lr', 'Rf', 'Db', 'Sg', 'Bh', 'Hs', 'Mt', 'Ds', 'Rg', 'Cn', 'Nh', 'Fl', 'Mc', 'Lv', 'Ts', 'Og',
+'Uue', 'NaE'
+]
+
+_basicCharges = [
+1,                                                                                               0,
+1, 2,                                                                         3, -4, -3, -2, -1, 0,
+1, 2,                                                                         3, -4, -3, -2, -1, 0,
+1, 2, 9,                                           9, 9, 9, 9, 9, 9, 9, 9, 9, 3, -4, -3, -2, -1, 0,
+1, 2, 9,                                           9, 9, 9, 9, 9, 9, 9, 9, 9, 3,  9, -3, -2, -1, 0,
+1, 2, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 3,  9, -3, -2, -1, 0,
+1, 2, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 3,  9, -3, -2, -1, 0,
+9, 9
+]
+
+IONIC_CHARGES = dict(zip(ELEMENTS, _basicCharges))
+
+IONIC_CHARGES['Zn'] = 2
+IONIC_CHARGES['Ag'] = 1
+IONIC_CHARGES['Sn'] = 9
+IONIC_CHARGES['Pb'] = 9
+
+with open(r'/home/Robert/Documents/Misc. Repos/Periodic-Table-JSON/PeriodicTableJSON.json', 'r') as f:
+    elementalInfo = json.load(f)
+
+elementalInfo = elementalInfo["elements"]
+
 
 class Element:
     "Creates an element"
 
     def __init__(self, string):
-        self.name = "ZERO"
+        self.symbol = "NaE"
         self.amount = 1
+        # self.amount = int(self.amount)
 
         try:
-            self.name = re.match(r'([A-Z][a-z])|([A-Z])', string)[0]
-            string = string.replace(self.name, '', re.match(r'([A-Z][a-z])|([A-Z])', string).endpos)
+            self.symbol = re.match(r'([A-Z][a-z])|([A-Z])', string)[0]
+            string = string.replace(self.symbol, '', re.match(r'([A-Z][a-z])|([A-Z])', string).endpos)
         except:
-            ''
+            pass
         try:
             self.amount = re.match(r'(\d\d)|\d', string)[0]
         except:
-            ''
+            pass
+
     def draw(self):
-        print(self.name, end = '', sep = '')
+        print(self.symbol, end = '', sep = '')
         if self.amount != 1:
             print(self.amount, end = '', sep = '')
+
+    def getWeight(self):
+        try:
+            return elementalInfo[self.symbol]["atomic_mass"] * self.amount
+        except:
+            print('Error: Invalid Element')
+
+    def ionicCharge(self):
+        return IONIC_CHARGES[self.symbol]
+
+    def getFullName(self):
+        return elementalInfo[self.symbol]['name']
 
 
 class Compound:
@@ -61,11 +92,11 @@ class Compound:
 
                 self.elements.append(element)
             except:
-                ''
+                pass
 
     def draw(self):
         if self.amount != 1:
-            print(self.amount, end = '', sep = '')
+            print(int(self.amount), end = '', sep = '')
             print('(', end = '', sep = '')
         for i in self.elements:
             i.draw()
@@ -73,7 +104,18 @@ class Compound:
             print(')', end='', sep = '')
 
     def getWeight(self):
-        print("I haven't implemented this yet. Sorry :(")
+        total = 0
+        for i in self.elements:
+            total += i.getWeight()
+        return total
+
+    def isIonicBond(self):
+        print("I still don't completely understand this myself, so... 6.")
+        return True
+
+    def getName(self):
+        name = "Sodium triwhoknows dioxlalate"
+        return name
 
 
 class Equation:
@@ -120,230 +162,119 @@ class Equation:
     def getType(self):
         print("I haven't done this yet...")
 
+    def isBalanced(self):
+        leftTotals, rightTotals = {}, {}
 
-'''
-#use a dictionary to map elements to their weights
-weights = MM_of_Elements
+        for leftCompound in self.leftSide:
+            for leftElement in leftCompound.elements:
+                if leftElement.symbol in leftTotals:
+                    leftTotals[leftElement.symbol] += int(leftElement.amount) * leftCompound.amount
+                else:
+                    leftTotals[leftElement.symbol] = int(leftElement.amount) * leftCompound.amount
 
-def getInt(clist):
-    """helper for parsing a list of chars as an int (returns 1 for empty list)"""
-    if not clist: return 1
-    return int(''.join(clist))
+        for rightCompound in self.rightSide:
+            for rightElement in rightCompound.elements:
+                if rightElement.symbol in rightTotals:
+                    rightTotals[rightElement.symbol] += int(rightElement.amount) * rightCompound.amount
+                else:
+                    rightTotals[rightElement.symbol] = int(rightElement.amount) * rightCompound.amount
 
+        for sym, amt in leftTotals.items():
+            if rightTotals[sym] != amt:
+                return False
 
+        return True
 
-
-def getWeight(formula):
-    """ get the combined weight of the formula in the input string """
-    formula = list(formula)
-    #initialize the weight to zero, and a list as a buffer for numbers
-    weight = 0
-    num_buffer = []
-    #get the first element weight
-    el_weight = weights[formula.pop(0)]
-    while formula:
-        next = formula.pop(0)
-        if next in weights:
-            #next character is an element, add current element weight to total
-            weight += el_weight * getInt(num_buffer)
-            #get the new elements weight
-            el_weight = weights[element]
-            #clear the number buffer
-            num_buffer = []
+    def balanceCoeficients(self):
+        if self.isBalanced():
+            pass
         else:
-            #next character is not an element -> it is a number, append to buffer
-            num_buffer.append(next)
-    #add the last element's weight and return the value
-    return weight + el_weight * getInt(num_buffer)
+            els = list()
+
+            # Get a list of element symbols
+            for compound in self.leftSide:
+                for element in compound.elements:
+                    els.append(element.symbol)
+
+            els_index = dict(zip(els, range(len(els))))  # {'C': 0, 'H': 1, 'O': 2}
+
+            # Build matrix to solve
+            w = len(self.leftSide) + len(self.rightSide) # 4
+            h = len(els) # 3
+            A = [[0] * w for _ in range(h)] # [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]
+
+            # load the matrix with element coefficients
+            for col, compound in enumerate(self.leftSide):
+                for el in compound.elements:
+                    row = els_index[el.symbol]
+                    A[row][col] = int(el.amount)
+            for col, compound in enumerate(self.rightSide, len(self.leftSide)):
+                for el in compound.elements:
+                    row = els_index[el.symbol]
+                    A[row][col] = -int(el.amount)   # invert coefficients for RHS
+
+            # Solve using Sympy for absolute-precision math
+            A = sympy.Matrix(A)
+
+            # find first basis vector == primary solution
+            coeffs = A.nullspace()[0]
+
+            # find least common denominator, multiply through to convert to integer solution
+            coeffs *= sympy.lcm([term.q for term in coeffs])
+
+            tmp = 0
+
+            for i, comp in enumerate(self.leftSide):
+                comp.amount = coeffs[i]
+                tmp = i
+            for i, comp in enumerate(self.rightSide):
+                comp.amount = coeffs[i+tmp+1]
 
 
-def getWeight(formula):
-    """ get the combined weight of the formula in the input string """
+print('''
+Welcome to Copeland's Stoichometric Helper!\n
+Enter a compound, an element, or a solved or unsovled chemical equation for more options.
+''')
 
+choice = input()
 
-    #initialize the weight to zero, and a list as a buffer for numbers
-    weight = 0
-    num_buffer = []
-    name_buffer = []
-    #get the first element weight
-    el_weight = weights[formula.pop(0)]
+# is an equation
+if re.match(r"[->]", choice):
+    formula = Equation(choice)
+    if formula.isBalanced():
+        subChoice = input('''
+        I see you\'ve entered a balanced chemical formula. Press I for info about the formula, R to
+        go back to the beginning, or Q to quit.
+        ''')
 
-    while formula:
-        next = formula.pop(0)
-        second = formula.pop(0)
-        # cheating to treat the list like a vector
-        formula.insert(0, second)
-
-        if next.digit():
-            num_buffer.append(next)
-        elif next.alpha() and next.upper():
-            name_buffer.append(next)
-
-
-        if next in weights:
-            #next character is an element, add current element weight to total
-            weight += el_weight * getInt(num_buffer)
-            #get the new elements weight
-            el_weight = weights[element]
-            #clear the number buffer
-            num_buffer = []
-        elif next.lower():
-            if next in weights:
-            #next character is an element, add current element weight to total
-            weight += el_weight * getInt(num_buffer)
-            #get the new elements weight
-            el_weight = weights[element]
-            #clear the number buffer
-            num_buffer = []
-    #add the last element's weight and return the value
-
-    # while formula:
-
-
-    return weight + el_weight * getInt(num_buffer)
-
-
-
-while True:
-    #main loop
-    chemical_formula = input("Enter chemical formula, or enter to quit: ")
-    if not chemical_formula:
-        break
-    parseEquation(chemical_formula).draw();
-    # print("Combined weight is %s" % getWeight(chemical_formula))
-
-'''
-
-
-
-# Compound = input('Molar Mass Caluclator \nExample: H2O not h2o \nEnter Compound Formula: ')
-# IsPolyatomic, End, Multiply = False, False, False
-# PolyatomicMass, MM, Multiplier = 0, 0, 1
-# Element = 'ZERO'
-
-# for i in range(0, len(Compound) + 1):
-#     E = Compound[i:i + 1]
-#     if IsPolyatomic:
-#         if End:
-#             IsPolyatomic = False
-#             MM += int(E) * PolyatomicMass
-#         elif E.isdigit():
-#             if Multiply: Multiplier = int(str(Multiplier) + E)
-#             else: Multiplier = int(E)
-#             Multiply = True
-#         elif E.islower(): Element += E
-#         elif E.isupper():
-#             PolyatomicMass += Multiplier * MM_of_Elements[Element]
-#             Element, Multiplier, Multiply = E, 1, False
-#         elif E == ')':
-#             PolyatomicMass += Multiplier * MM_of_Elements[Element]
-#             Element, Multiplier = 'ZERO', 1
-#             End, Multiply = True, False
-#     elif E == '(':
-#         MM += Multiplier * MM_of_Elements[Element]
-#         Element, Multiplier = 'ZERO', 1
-#         IsPolyatomic, Multiply = True, False
-#     elif E.isdigit():
-#         if Multiply:
-#             Multiplier = int(str(Multiplier) + E)
-#         else: Multiplier = int(E)
-#         Multiply = True
-#     elif E.islower(): Element += E
-#     elif E.isupper():
-#         MM += Multiplier * MM_of_Elements[Element]
-#         Element, Multiplier, Multiply = E, 1, False
-#     elif i == len(Compound):
-#         MM += Multiplier * MM_of_Elements[Element]
-#         Element, Multiplier, Multiply = E, 1, False
-# print(f'The Molar mass of {Compound} is {round(MM)} g/mol')
+        if   subChoice.upper() == 'I':
+            getInfo(formula)
+        elif subChoice.upper() == 'R':
+            restart = True
+        elif subChoice.upper() == 'Q':
+            quit(0)
 
 
 
 
+# is a compound
+if re.match(r"([A-Z][a-z]\d\d)|([A-Z][a-z]\d)|([A-Z][a-z])|([A-Z]\d\d)|([A-Z]\d)|([A-Z][A-Z])", choice):
 
-'''
-atom_regex = '([A-Z][a-z]*)(\d*)'
-openers = '({['
-closers = ')}]'
-
-
-def is_balanced(formula):
-    """Check if all sort of brackets come in pairs."""
-    # Very naive check, just here because you always need some input checking
-    c = Counter(formula)
-    return c['['] == c[']'] and c['{'] == c['}'] and c['('] == c[')']
+# is an element
+if re.match(r'([A-Z][a-z])|([A-Z])', choice):
 
 
-def _dictify(tuples):
-    """Transform tuples of tuples to a dict of atoms."""
-    res = dict()
-    for atom, n in tuples:
-        try:
-            res[atom] += int(n or 1)
-        except KeyError:
-            res[atom] = int(n or 1)
-    return res
+formula = Equation(input("Enter chemical formula, or enter to quit:\n"))
 
+# useful for debugging
+# debugFormula = "C8H18 + O2 -> CO2 + H2O"
+# debugFormula = "C8H8 + C2H2 -> C5H5"
+# print(debugFormula)
+# formula = Equation(debugFormula)
 
-def _fuse(mol1, mol2, w=1):
-    """
-    Fuse 2 dicts representing molecules. Return a new dict.
-    This fusion does not follow the laws of physics.
-    """
-    return {atom: (mol1.get(atom, 0) + mol2.get(atom, 0)) * w for atom in set(mol1) | set(mol2)}
-
-
-def _parse(formula):
-    """
-    Return the molecule dict and length of parsed part.
-    Recurse on opening brackets to parse the subpart and
-    return on closing ones because it is the end of said subpart.
-    """
-    q = []
-    mol = {}
-    i = 0
-
-    while i < len(formula):
-        # Using a classic loop allow for manipulating the cursor
-        token = formula[i]
-
-        if token in closers:
-            # Check for an index for this part
-            m = re.match('\d+', formula[i+1:])
-            if m:
-                weight = int(m.group(0))
-                i += len(m.group(0))
-            else:
-                weight = 1
-
-            submol = _dictify(re.findall(atom_regex, ''.join(q)))
-            return _fuse(mol, submol, weight), i
-
-        elif token in openers:
-            submol, l = _parse(formula[i+1:])
-            mol = _fuse(mol, submol)
-            # skip the already read submol
-            i += l + 1
-        else:
-            q.append(token)
-
-        i+=1
-
-    # Fuse in all that's left at base level
-    return _fuse(mol, _dictify(re.findall(atom_regex, ''.join(q)))), i
-
-
-def parse_formula(formula):
-    """Parse the formula and return a dict with occurences of each atom."""
-    if not is_balanced(formula):
-        raise ValueError("Watch your brackets ![{]$[&?)]}!]")
-
-    return _parse(formula)[0]
-'''
-
-print("C8H18 + O2 -> CO2 + H2O")
-# formula = Equation(input("Enter chemical formula, or enter to quit:\n"))
-formula = Equation("C8H18 + O2 -> CO2 + H2O")
 formula.draw()
 
-# C8H18 + O2 -> CO2 + H2O
+print('')
+formula.balanceCoeficients()
+formula.draw()
+print(formula.isBalanced())
